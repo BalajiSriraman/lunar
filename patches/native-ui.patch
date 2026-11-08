@@ -1,0 +1,87 @@
+--- a/app/main.cpp
++++ b/app/main.cpp
+@@ -53,6 +53,8 @@
+ #include "backend/systemproperties.h"
+ #include "streaming/session.h"
+ #include "settings/streamingpreferences.h"
++#include "cli/lunarui.h"
++#include "cli/lunarsettings.h"
+ #include "gui/sdlgamepadkeynavigation.h"
+ 
+ #if defined(Q_OS_WIN32)
+@@ -420,6 +422,7 @@
+ 
+ int main(int argc, char *argv[])
+ {
++    if (argc < 2) return 0; // This bundled helper has no standalone library window.
+     SDL_SetMainReady();
+ 
+     // Set the app version for the QCommandLineParser's showVersion() command
+@@ -431,6 +434,10 @@
+     QCoreApplication::setOrganizationName("Moonlight Game Streaming Project");
+     QCoreApplication::setOrganizationDomain("moonlight-stream.com");
+     QCoreApplication::setApplicationName("Moonlight");
++    if (!configureLunarSettings()) {
++        fprintf(stderr, "Lunar could not save its settings. Check home folder permissions.\n");
++        return 1;
++    }
+ 
+     if (QFile(QDir::currentPath() + "/portable.dat").exists()) {
+         QSettings::setDefaultFormat(QSettings::IniFormat);
+@@ -1000,6 +1007,11 @@
+             QString host    = streamParser.getHost();
+             QString appName = streamParser.getAppName();
+             auto launcher   = new CliStartStream::Launcher(host, appName, preferences, &app);
++            if (qEnvironmentVariableIsSet("LUNAR_NATIVE_UI")) {
++                startLunarUI(app, launcher, preferences);
++                hasGUI = false;
++                break;
++            }
+             engine.rootContext()->setContextProperty("launcher", launcher);
+             break;
+         }
+@@ -1018,6 +1030,11 @@
+             PairCommandLineParser pairParser;
+             pairParser.parse(app.arguments());
+             auto launcher = new CliPair::Launcher(pairParser.getHost(), pairParser.getPredefinedPin(), &app);
++            if (qEnvironmentVariableIsSet("LUNAR_NATIVE_UI")) {
++                startLunarPairing(app, launcher);
++                hasGUI = false;
++                break;
++            }
+             engine.rootContext()->setContextProperty("launcher", launcher);
+             break;
+         }
+--- a/app/cli/pair.cpp
++++ b/app/cli/pair.cpp
+@@ -78,7 +78,8 @@
+                 if (event.computer->pairState == NvComputer::PS_PAIRED) {
+                     m_State = StateFailure;
+                     QString msg = QObject::tr("%1 is already paired").arg(event.computer->name);
+-                    emit q->failed(msg);
++                    if (qEnvironmentVariableIsSet("LUNAR_NATIVE_UI")) emit q->success();
++                    else emit q->failed(msg);
+                 }
+                 else {
+                     Q_ASSERT(!m_PredefinedPin.isEmpty());
+--- a/app/cli/listapps.cpp
++++ b/app/cli/listapps.cpp
+@@ -137,7 +137,7 @@
+                                                           app.isAppCollectorGame ? "true" : "false",
+                                                           app.hidden ? "true" : "false",
+                                                           app.directLaunch ? "true" : "false",
+-                                                          qPrintable(m_BoxArtManager->loadBoxArt(m_Computer, app).toDisplayString()));
++                                                          qPrintable(qEnvironmentVariableIsSet("LUNAR_NATIVE_UI") ? QString() : m_BoxArtManager->loadBoxArt(m_Computer, app).toDisplayString()));
+     }
+ 
+     Launcher *q_ptr;
+--- a/app/app.pro
++++ b/app/app.pro
+@@ -580,3 +580,7 @@
+ 
+ VERSION = "$$cat(version.txt)"
+ DEFINES += VERSION_STR=\\\"$$cat(version.txt)\\\"
++
++HEADERS += cli/lunarui.h cli/lunarsettings.h
++
++macx: OBJECTIVE_SOURCES += cli/lunarmenu.mm

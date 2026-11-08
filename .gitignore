@@ -1,0 +1,19 @@
+build/
+.DS_Store
+
+# Local investigation notes and unused upstream download.
+/reviews/
+/vendor/moonlight-qt-master/
+
+# Generated files, local settings, and credentials.
+.env
+.env.*
+!.env.example
+*.log
+*.dmg
+*.dmg.sha256
+*.pem
+*.key
+*.p12
+*.pfx
+*.dSYM/
